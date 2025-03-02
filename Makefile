@@ -1,13 +1,13 @@
 # Connectivity info for Linux VM
-NIXADDR ?= 10.211.55.13
+NIXADDR ?= 192.168.205.8
 NIXPORT ?= 22
-NIXUSER ?= ben
+NIXUSER ?= ben 
 
 # Get the path to this Makefile and directory
 MAKEFILE_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 
 # The name of the nixosConfiguration in the flake
-NIXNAME ?= vm-aarch64-prl
+NIXNAME ?= vm-aarch64-utm
 
 # SSH options that are used. These aren't meant to be overridden but are
 # reused a lot so we just store them up here.
@@ -18,7 +18,7 @@ UNAME := $(shell uname)
 
 switch:
 ifeq ($(UNAME), Darwin)
-	nix build ".#darwinConfigurations.${NIXNAME}.system"
+	nix build --extra-experimental-features nix-command --extra-experimental-features flakes ".#darwinConfigurations.${NIXNAME}.system"
 	./result/sw/bin/darwin-rebuild switch --flake "$$(pwd)#${NIXNAME}"
 else
 	sudo NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 nixos-rebuild switch --flake ".#${NIXNAME}"
@@ -50,10 +50,10 @@ cache:
 vm/bootstrap0:
 	ssh $(SSH_OPTIONS) -p$(NIXPORT) root@$(NIXADDR) " \
 		parted /dev/sda -- mklabel gpt; \
-		parted /dev/sda -- mkpart primary 512MiB -8GiB; \
-		parted /dev/sda -- mkpart primary linux-swap -8GiB 100\%; \
+		parted /dev/sda -- mkpart primary 512MB -8GB; \
+		parted /dev/sda -- mkpart primary linux-swap -8GB 100\%; \
+		parted /dev/sda -- mkpart ESP fat32 1MB 512MB; \
 		parted /dev/sda -- set 3 esp on; \
-		parted /dev/sda -- mkpart ESP fat32 1MiB 512MiB; \
 		sleep 1; \
 		mkfs.ext4 -L nixos /dev/sda1; \
 		mkswap -L swap /dev/sda2; \
@@ -62,19 +62,18 @@ vm/bootstrap0:
 		mount /dev/disk/by-label/nixos /mnt; \
 		mkdir -p /mnt/boot; \
 		mount /dev/disk/by-label/boot /mnt/boot; \
-		sed --in-place '/system\.stateVersion = .*/a \
 		nixos-generate-config --root /mnt; \
+		sed --in-place '/system\.stateVersion = .*/a \
 			nix.package = pkgs.nixUnstable;\n \
 			nix.extraOptions = \"experimental-features = nix-command flakes\";\n \
-			nix.binaryCaches = [\"https://mitchellh-nixos-config.cachix.org\"];\n \
-			nix.binaryCachePublicKeys = [\"mitchellh-nixos-config.cachix.org-1:bjEbXJyLrL1HZZHBbO4QALnI5faYZppzkU4D2s0G8RQ=\"];\n \
+			nix.settings.substituters = [\"https://mitchellh-nixos-config.cachix.org\"];\n \
+			nix.settings.trusted-public-keys = [\"mitchellh-nixos-config.cachix.org-1:bjEbXJyLrL1HZZHBbO4QALnI5faYZppzkU4D2s0G8RQ=\"];\n \
   			services.openssh.enable = true;\n \
-			services.openssh.passwordAuthentication = true;\n \
-			services.openssh.permitRootLogin = \"yes\";\n \
+			services.openssh.settings.PasswordAuthentication = true;\n \
+			services.openssh.settings.PermitRootLogin = \"yes\";\n \
 			users.users.root.initialPassword = \"root\";\n \
 		' /mnt/etc/nixos/configuration.nix; \
-		nixos-install --no-root-passwd; \
-		reboot; \
+		nixos-install --no-root-passwd && reboot; \
 	"
 
 # after bootstrap0, run this to finalize. After this, do everything else
@@ -117,6 +116,7 @@ vm/switch:
 		sudo NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 nixos-rebuild switch --flake \"/nix-config#${NIXNAME}\" \
 	"
 
-# Build an ISO image
-iso/nixos.iso:
-	cd iso; ./build.sh
+# Build a WSL installer
+.PHONY: wsl
+wsl:
+	 nix build ".#nixosConfigurations.wsl.config.system.build.installer"

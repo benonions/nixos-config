@@ -1,169 +1,187 @@
 { config, pkgs, lib, currentSystem, currentSystemName, ... }:
 
 {
-  # Be careful updating this.
+  #######################
+  # SYSTEM CONFIGURATION
+  #######################
+
+  # System version - keep this at the install version unless you understand the implications
+  system.stateVersion = "20.09";
+
+  # Define your hostname
+  networking.hostName = "dev";
+  networking.networkmanager.enable = true;
+  networking.useDHCP = false;  # Per-interface useDHCP is now mandatory
+  networking.firewall.enable = false;  # Disabled since this is a VM with NAT networking
+
+  # Set your time zone
+  time.timeZone = "Australia/Melbourne";
+
+  ##################
+  # BOOT & KERNEL
+  ##################
+
+  # Be careful updating the kernel packages
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
+  # EFI boot loader configuration
+  boot.loader = {
+    systemd-boot.enable = true;
+    efi.canTouchEfiVariables = true;
+    # VMware/Parallels require consoleMode = "0" to avoid "error switching console mode"
+    systemd-boot.consoleMode = "0";
+  };
+
+  ##################
+  # NIX SETTINGS
+  ##################
+
   nix = {
-    # use unstable nix so we can access flakes
-    package = pkgs.nixUnstable;
+    package = pkgs.nixVersions.latest;
     extraOptions = ''
       experimental-features = nix-command flakes
       keep-outputs = true
       keep-derivations = true
     '';
+  };
 
-    # public binary cache that I use for all my derivations. You can keep
-    # this, use your own, or toss it. Its typically safe to use a binary cache
-    # since the data inside is checksummed.
+  # Allow specific insecure packages (with clear justification)
+  nixpkgs.config.permittedInsecurePackages = [
+    "mupdf-1.17.0"  # Needed for k2pdfopt 2.53
+  ];
+
+  ##################
+  # USERS & SECURITY
+  ##################
+
+  # User accounts configuration
+  users.mutableUsers = false;
+
+  # Define user account with appropriate groups
+  users.users.ben = {
+    isNormalUser = true;
+    extraGroups = [ 
+      "wheel"          # For sudo access
+      "video"          # For hardware acceleration and screen capture
+      "input"          # For input devices
+      "networkmanager" # For network management
+      "docker"         # For Docker access
+    ];
+  };
+
+  # Sudo configuration
+  security.sudo.wheelNeedsPassword = false;
+  services.qemuGuest.enable = true;
+  security.polkit.enable = true;
+
+  # SSH server configuration
+  services.openssh = {
+    enable = true;
     settings = {
-      substituters = [ "https://mitchellh-nixos-config.cachix.org" ];
-      trusted-public-keys = [ "mitchellh-nixos-config.cachix.org-1:bjEbXJyLrL1HZZHBbO4QALnI5faYZppzkU4D2s0G8RQ=" ];
+      PasswordAuthentication = true;
+      PermitRootLogin = "no";
     };
   };
 
-  nixpkgs.config.permittedInsecurePackages = [
-    # Needed for k2pdfopt 2.53.
-    "mupdf-1.17.0"
-  ];
+  ##################
+  # SWAY CONFIGURATION
+  ##################
+  
+  # Enable OpenGL for Wayland compositing
+  hardware.graphics.enable = true;
 
-  # We expect to run the VM on hidpi machines.
-  hardware.video.hidpi.enable = true;
-
-  # Use the systemd-boot EFI boot loader.
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
-
-  # VMware, Parallels both only support this being 0 otherwise you see
-  # "error switching console mode" on boot.
-  boot.loader.systemd-boot.consoleMode = "0";
-
-  # Define your hostname.
-  networking.hostName = "dev";
-
-  # Set your time zone.
-  time.timeZone = "America/Los_Angeles";
-
-  # The global useDHCP flag is deprecated, therefore explicitly set to false here.
-  # Per-interface useDHCP will be mandatory in the future, so this generated config
-  # replicates the default behaviour.
-  networking.useDHCP = false;
-
-  # Don't require password for sudo
-  security.sudo.wheelNeedsPassword = false;
-
-  # Virtualization settings
-  virtualisation.docker.enable = true;
-
-  # Select internationalisation properties.
-  i18n.defaultLocale = "en_US.UTF-8";
-
-  # setup windowing environment
-  environment.pathsToLink = [ "/libexec" ]; #needed for i3blocks
-  services.xserver = {
+  # Enable greetd display manager for Sway
+  services.greetd = {
     enable = true;
-    layout = "us";
-    dpi = 220;
-
-    desktopManager = {
-      xterm.enable = false;
-      xfce = {
-        enable = true;
-        noDesktop = true;
-        enableXfwm = false;
+    settings = {
+      default_session = {
+        command = "${pkgs.greetd.tuigreet}/bin/tuigreet --time --cmd sway";
+        user = "greeter";
       };
     };
+  };
 
-    displayManager = {
-      defaultSession = "xfce";
-      # lightdm.enable = true;
+  # XDG Desktop Portal for screen sharing and better app integration
+  xdg.portal = {
+    enable = true;
+    wlr.enable = true;
+    extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
+    config.common.default = "*";
+  };
 
-      # AARCH64: For now, on Apple Silicon, we must manually set the
-      # display resolution. This is a known issue with VMware Fusion.
-      # sessionCommands = ''
-      #   ${pkgs.xorg.xset}/bin/xset r rate 200 40
-      # '';
-    };
+  ##################
+  # INTERNATIONALIZATION
+  ##################
 
-    windowManager = {
-      i3.enable = true;
-      i3.package = pkgs.i3-gaps;
-      i3.extraPackages = with pkgs; [
-        i3blocks #if you are planning on using i3blocks over i3status
+  # Locale and input method configuration
+  i18n = {
+    defaultLocale = "en_US.UTF-8";
+    inputMethod = {
+      enable = true;
+      type = "fcitx5";
+      fcitx5.addons = with pkgs; [
+        fcitx5-mozc
+        fcitx5-gtk
+        fcitx5-chinese-addons
       ];
     };
   };
 
-  services.picom.enable = true;
+  ##################
+  # SERVICES
+  ##################
 
-  # Enable tailscale. We manually authenticate when we want with
-  # "sudo tailscale up". If you don't use tailscale, you should comment
-  # out or delete all of this.
-  services.tailscale.enable = true;
+  # Network services
+  services.tailscale.enable = true;  # Manually authenticate with "sudo tailscale up"
+  services.gnome.gnome-keyring.enable = true;
 
-  # Enable flatpak. We try not to use this (we prefer to use Nix!) but
-  # some software its useful to use this and we also use it for dev tools.
-  services.flatpak.enable = true;
-  xdg.portal.enable = true;
-  xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
+  # Application distribution platforms
+  services.flatpak.enable = true;  # For testing flatpak apps
+  services.snap.enable = true;     # For testing and releasing snaps
 
-  # Define a user account. Don't forget to set a password with ‘passwd’.
-  users.mutableUsers = false;
+  ##################
+  # VIRTUALIZATION
+  ##################
 
-  # Manage fonts. We pull these from a secret directory since most of these
-  # fonts require a purchase.
+  # Container and virtualization support
+  virtualisation = {
+    docker.enable = true;
+    lxd.enable = true;
+  };
+
+  ##################
+  # FONTS
+  ##################
+
   fonts = {
     fontDir.enable = true;
-
-    fonts = with pkgs; [
-      nerdfonts
+    packages = with pkgs; [
+      fira-code
+      jetbrains-mono
+      noto-fonts
+      noto-fonts-cjk-sans
+      noto-fonts-emoji
+      (nerdfonts.override { fonts = [ "FiraCode" "JetBrainsMono" ]; })
     ];
   };
 
-  # List packages installed in system profile. To search, run:
-  # $ nix search wget
+  ##################
+  # SYSTEM PACKAGES
+  ##################
+
+  # Basic system utilities
   environment.systemPackages = with pkgs; [
+    # Core utilities
     cachix
     gnumake
     killall
     niv
-    rxvt_unicode
     xclip
-
-    # For hypervisors that support auto-resizing, this script forces it.
-    # I've noticed not everyone listens to the udev events so this is a hack.
-    (writeShellScriptBin "xrandr-auto" ''
-      xrandr --output Virtual-1 --auto
-    '')
-  ] ++ lib.optionals (currentSystemName == "vm-aarch64") [
-    # This is needed for the vmware user tools clipboard to work.
-    # You can test if you don't need this by deleting this and seeing
-    # if the clipboard sill works.
-    gtkmm3
+    wget
+    git
+    nixos-artwork.wallpapers.binary-black
+    nixos-artwork.wallpapers.dracula
   ];
 
-  # Some programs need SUID wrappers, can be configured further or are
-  # started in user sessions.
-  # programs.mtr.enable = true;
-  # programs.gnupg.agent = {
-  #   enable = true;
-  #   enableSSHSupport = true;
-  # };
-
-  # Enable the OpenSSH daemon.
-  services.openssh.enable = true;
-  services.openssh.passwordAuthentication = true;
-  services.openssh.permitRootLogin = "no";
-
-  # Disable the firewall since we're in a VM and we want to make it
-  # easy to visit stuff in here. We only use NAT networking anyways.
-  networking.firewall.enable = false;
-
-  # This value determines the NixOS release from which the default
-  # settings for stateful data, like file locations and database versions
-  # on your system were taken. It‘s perfectly fine and recommended to leave
-  # this value at the release version of the first install of this system.
-  # Before changing this value read the documentation for this option
-  # (e.g. man configuration.nix or on https://nixos.org/nixos/options.html).
-  system.stateVersion = "20.09"; # Did you read the comment?
+  environment.pathsToLink = [ "/share/backgrounds/nixos" ];
 }

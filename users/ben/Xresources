@@ -1,5 +1,7 @@
-! URXVT FONT SETTINGS
+! Dracula Theme for URxvt
 !------------------------------------------------
+
+! Font rendering settings
 Xft.dpi: 180
 Xft.autohint: true
 Xft.antialias: true
@@ -8,41 +10,31 @@ Xft.hintstyle: hintslight
 Xft.rgba: rgb
 Xft.lcdfilter: lcddefault
 
-! TERMINAL COLORS
-!------------------------------------------------
-*background: #1D1F21
-*foreground: #C5C8C6
-*cursorColor: #C3FF00
+! Dracula colors for terminal background and text
+*background:   #282a36
+*foreground:   #f8f8f2
+*cursorColor:  #f8f8f2
 
-! black
-*color0: #282A2E
-*color8: #373B41
-! red
-*color1: #A54242
-*color9: #CC6666
-! green
-*color2: #8C9440
-*color10: #B5BD68
-! yellow
-*color3: #DE935F
-*color11: #F0C674
-! blue
-*color4: #5F819D
-*color12: #81A2BE
-! magenta
-*color5: #85678F
-*color13: #B294BB
-! cyan
-*color6: #5E8D87
-*color14: #8ABEB7
-! white
-*color7: #707880
-*color15: #C5C8C6
+! Dracula terminal palette
+*color0:  #21222c   ! black
+*color1:  #ff5555   ! red
+*color2:  #50fa7b   ! green
+*color3:  #f1fa8c   ! yellow
+*color4:  #bd93f9   ! blue
+*color5:  #ff79c6   ! magenta
+*color6:  #8be9fd   ! cyan
+*color7:  #f8f8f2   ! white
+*color8:  #6272a4   ! bright black
+*color9:  #ff6e6e   ! bright red
+*color10: #69ff94   ! bright green
+*color11: #ffffa5   ! bright yellow
+*color12: #d6acff   ! bright blue
+*color13: #ff92df   ! bright magenta
+*color14: #a4ffff   ! bright cyan
+*color15: #ffffff   ! bright white
 
-! URXVT
-!----------------------------------------------------------------------
-! Colors
-! bold, italic, underline
-URxvt.colorBD: #B5BD68
-URxvt.colorIT: #B294BB
-URxvt.colorUL: #81A2BE
+! URxvt-specific settings for styled text
+URxvt.colorBD: #50fa7b   ! bold text (green)
+URxvt.colorIT: #bd93f9   ! italic text (blue)
+URxvt.colorUL: #8be9fd   ! underlined text (cyan)
+
